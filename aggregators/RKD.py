@@ -94,9 +94,7 @@ class RKDAggregator(Aggregator):
             chosen_clients = [self.clients[i] for i in self.chosen_indices]
             
             #aggregation
-            #self.model = self.aggregate(chosen_clients, models)
             self.chosen_clients1: List[Client] = [self.clients[i] for i in self.chosen_indices if i  in self.benign_clients_indices ]
-            #print(f"self.chosen_clients1: {self.chosen_clients1}")
 
 
             
@@ -108,11 +106,9 @@ class RKDAggregator(Aggregator):
             error, success_rate = self.test(testDataset)
             roundsError[self.r] = torch.tensor(error, dtype=torch.float32)
             roundsattack_success_rate[self.r] = torch.tensor(success_rate, dtype=torch.float32)
-            #attack_success_variance[self.r] = torch.tensor(variance, dtype=torch.float32)
 
             print(f'Accuracy of the model on clean images: {roundsError[self.r]:.2f}%')
             print(f'Attack success rate: {roundsattack_success_rate[self.r]:.2f}%')
-            #print(f'attack_success_variance: {attack_success_variance[self.r]:.2f}%')
 
         return roundsError, roundsattack_success_rate
     
@@ -134,14 +130,6 @@ class RKDAggregator(Aggregator):
     
         ensemble = self.median_models
        
-        #weights = kd.weightedVotingBasedScores(ensemble, clients)
-        #weights = kd.weightedVotingBasedScores(ensemble,self.chosen_clients1)
-
-        #logPrint("Consensu scores:", ", ".join([f"{w*100:.1f}%" for w in weights]))
-        
-        #self.chosen_clients1: List[Client] = [self.clients[i] for i in self.chosen_indices if i  in self.filtered_benign_indices ]
-
-        #Scoresmodel = self._weightedAverageModel(ensemble, weights) # device='cuda'
         Scoresmodel = self._averageModel(ensemble)
 
         
@@ -171,83 +159,87 @@ class RKDAggregator(Aggregator):
             List of "clean" torch.nn.Module objects which are not considered malicious.
         """
        
-        # Step A: Calculate Average Parameters
-        num_clients = len(models)
+        num_clients = len(self.models)
         avg_parameters = {}
         self.malicious_clients_indices = set()
 
-        for model in models:
+        # Aggregate average parameters
+        for model in self.models:
             for name, param in model.named_parameters():
                 if name not in avg_parameters:
                     avg_parameters[name] = param.data.clone()
                 else:
                     avg_parameters[name] += param.data.clone()
+                    
 
         for name in avg_parameters:
             avg_parameters[name] /= num_clients
-            
-            
+            #print(f"avg_parameters[name] -----: {avg_parameters[name]}")
 
-        
-        # Step B: Identify Malicious Clients using HDBSCAN Clustering
+
+        # Calculate cosine similarities
         cosine_similarities = []
-
-        # Assuming your models and avg_parameters are on CUDA (GPU)
-        # You should move them to CPU memory before calculating the cosine similarities
-        for i, model in enumerate(models):
+        for model in self.models:
             cosine_similarity_score = 0
             for name, param in model.named_parameters():
-                cosine_similarity_score += torch.nn.functional.cosine_similarity(param.data.flatten().cpu(), avg_parameters[name].flatten().cpu(), dim=0)
-            cosine_similarities.append(cosine_similarity_score / len(avg_parameters))
+                cosine_similarity_score += torch.nn.functional.cosine_similarity(
+                    param.data.flatten(), avg_parameters[name].flatten(), dim=0)
+            cosine_similarities.append(cosine_similarity_score.item() / len(avg_parameters))
 
+        # Convert similarities to NumPy array for clustering
+        cosine_similarities_np = np.array(cosine_similarities).reshape(-1, 1)
+        #cosine_similarities_np = 1 - np.array(cosine_similarities).reshape(-1, 1)  #should try
+        print(f"cosine_similarities_np -----: {cosine_similarities_np}")
+        
         # Dynamically adjust min_cluster_size based on the current round or some other criteria
         dynamic_min_cluster_size = max(2, int(num_clients * 0.2 - self.r))
         print(f"dynamic_min_cluster_size-----: {dynamic_min_cluster_size}")
 
-        #Move the cosine_similarities tensor to CPU memory before converting to NumPy array
-        cosine_similarities_cpu = torch.stack(cosine_similarities).cpu()
-        cosine_similarities_np = np.array(cosine_similarities).reshape(-1, 1)
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=dynamic_min_cluster_size, allow_single_cluster=True, metric='euclidean')
+
+
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=dynamic_min_cluster_size, metric='euclidean')
         cluster_labels = clusterer.fit_predict(cosine_similarities_np)
+        print(f"cluster_labels------: {cluster_labels}")
         
-        
-        # Identify the cluster NOT containing the centroid (which has the highest cosine similarity, close to 1)
-        cosine_similarities_np = np.array(cosine_similarities)
-        
-        print(f"cosine_similarities-----: {cosine_similarities}")
-        centroid_cluster_label = cluster_labels[np.argmax(cosine_similarities_np < 1.5)] #0.5 1--CifarIPM (1=5.0,2=12.7) 4= 12.0
-        
-        print(f"centroid_cluster_label-----: {centroid_cluster_label}")
+         # Analyze clusters
+        benign_indices = []
+        malicious_indices = []
+        mean_cosines = []  # List to store mean cosine values for all clusters
 
-    
-        # Identify other clusters as clean clusters
-        outlier_cluster_labels = set(cluster_labels) - {centroid_cluster_label}
-        print(f"outlier_cluster_labels -----: {outlier_cluster_labels }")
+        for i in np.unique(cluster_labels):
+            cluster_cosines = cosine_similarities_np[cluster_labels == i]
+            mean_cosine = np.mean(cluster_cosines)
+            mean_cosines.append(mean_cosine)  # Store mean cosine for later comparison
+            print(f"cluster_cosines for cluster {i}------: {cluster_cosines}")
+            print(f"mean_cosine for cluster {i}------: {mean_cosine}")
 
-        # Step C: Exclude Malicious Clients
-        clean_models = [model for i, model in enumerate(models) if cluster_labels[i] not in outlier_cluster_labels]
-        self.benign_clients_indices = set(np.where(cluster_labels == centroid_cluster_label)[0])
-        self.malicious_clients_indices=set(np.where(cluster_labels != centroid_cluster_label)[0])
+        # Determine the maximum mean cosine similarity
+        max_mean_cosine = max(mean_cosines)
+        print(f"Maximum mean cosine similarity across all clusters: {max_mean_cosine}")
+
+        # Classify clusters based on the maximum mean cosine similarity
+        for i, cluster_id in enumerate(np.unique(cluster_labels)):
+            print(f"Evaluating cluster {cluster_id} with mean cosine: {mean_cosines[i]}")
+            if mean_cosines[i] == max_mean_cosine:
+                print(f"Cluster {cluster_id} is considered benign.")
+                benign_indices.extend(np.where(cluster_labels == cluster_id)[0])
+            else:
+                print(f"Cluster {cluster_id} is considered potentially malicious.")
+                malicious_indices.extend(np.where(cluster_labels == cluster_id)[0])
+
+        print(f"Benign client indices----: {benign_indices}")
+        print(f"Malicious client indices---: {malicious_indices}")
         
-        #self.malicious_clients_indices = set(np.where(cluster_labels == centroid_cluster_label)[0])
-        #self.benign_clients_indices=set(np.where(cluster_labels != centroid_cluster_label)[0])
-        
-        
-        print(f"Identified clients at benign indices-----: {self.benign_clients_indices}")
 
 
-        print(f"Identified malicious clients at indices-----: {self.malicious_clients_indices}")
-        print(f"Returning---- {len(clean_models)} clean models")
-        ""
-        # Step D: Apply Clipping to the Model Parameters
-        #clipping_threshold = 1.5 # Define a suitable clipping threshold #1.5
-        #for model in clean_models:
-            #for param in model.parameters():
-                #with torch.no_grad():
-                    #param.clamp_(-clipping_threshold, clipping_threshold)
+        # Select models based on benign indices
+        clean_models = [models[i] for i in benign_indices]
+        self.benign_clients_indices = set(benign_indices)
+        self.malicious_clients_indices = set(malicious_indices)
 
-        # Returning the models with clipped parameters
-        ""
+        print("Identified benign clients at indices:", self.benign_clients_indices)
+        print("Identified malicious clients at indices:", self.malicious_clients_indices)
+        print("Returning", len(clean_models), "clean models")
 
         return clean_models
 
@@ -280,9 +272,9 @@ class RKDAggregator(Aggregator):
         # Find the model(s) closest to the overall median
         closest_models = sorted(benign_models, key=lambda m: abs(torch.cat([p.flatten() for p in m.parameters()]).median().item() - overall_median))
 
-        # Return a subset of models (e.g., top 3 closest models)
+        # Return a subset of models ( closest models)
         
-        return closest_models[:7] #9
+        return closest_models[:7] 
 
     
     def ensembleAccuracy1(self, pseudolabels):
