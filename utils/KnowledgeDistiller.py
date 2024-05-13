@@ -39,78 +39,13 @@ class KnowledgeDistiller:
         self.epoc = epoc
         self.lr1 = 0.001
         self.swa_lr = 0.01
-        
-        
-        #IID=0.5EMNIST IPM LISE 
-        #6,12=0.001 0.01 eph3 temp2
-        #12 ALIE =0.0001 0.001 top 17 temp2
-        #15 IPM ,ALIE =0.0001 0.01 top 17 temp2
-        #18 =0.0001 0.001 top 17 temp2 
-
-
-        # IDD 0.05 Mnist        
-        #6=0.0001 0.001 epoch1 
-        
-      
-        #IDD 0.9 MNIST
-        # IID 0.86 3=0.001 0.01 avglogits epoch1  weightedVotingBasedScores Max avglogits
-        #IDD 0.9 6=0001 001 weightedVotingBasedScores Max medlogits epoch2 or 0.0001 0.0001   weightedVotingBasedScores Max avglogits
-        #IID 0.87 9=005 05 weightedVotingBasedScores Max avglogits epoch1 
-        #IID 0.87 12=005 05 weightedVotingBasedScores Max avglogits epoch1 
-        #IID 0.87 15=001 005 weightedVotingBasedScores Max avglogits epoch1 
-        
-        #IDD 0.5 EMNIST DBA
-        #3=0.001 0.005 ep4,7 , 0.001 0.01 ep2------- 0.0001 0.005 ep2 , 0.005 0.05 ep9, 0.01 0.05  weightedVotingBasedScores Max avglogits epoch10
-        #9=0.00005 0.005 epo7 0.05 0.005 ep1---------0.0001 0.005 ep4, 0.0001 0.05 ep5, 0.0001 0.005 ep6  weightedVotingBasedScores Max avglogits epoch6 
-        #6= 001 001 epo7 -------10 0.01 0.05 epo1 , 0.005 0.005 0,005 0.05 epo3  weightedVotingBasedScores Max avglogits epoch3 
-        #12=0.005 0.01 ep1, 0005 005 epo2-----0.005 0.0005 0.0001,   0.05  weightedVotingBasedScores Max avglogits epoch6
-        #15= 0.001 0.01 ep3.0005 0.005 ep1-------,0.0001 0.05 , 0.005 0.005,  weightedVotingBasedScores Max avglogits epoch6
-        #18=0.0005 0.1 , 0.005 0. 005 0.005 epo1 0.05  ep5, 0.0001 0.001 ep1, weightedVotingBasedScores Max avglogits epoch4
-        #No attack 0.01 0.05 weightedVotingBasedScores Max avglogits epoch1 self.momentum = 0.05
-        #----------------------------
-        #IID0.05 Emnist LF 
-        #18 0.001 0.05 ep7 0.005 0.0001 ep1
-        #15 0.01 0.5 ep1    
-        #12= 0.0001 0.005 ep7 
-        #6 0.01 0.001 0.05 0.001 ep1 005 0.0001 epo1
-        #3 0.05 0.001 ep1 
-
-
-
-        #----------------------
-        #IDD 0.5 EMNIST Trojan
-        #3=0.001 0.01 weightedVotingBasedScores Max avglogits epoch3
-        #6=0.001 0.01 eop6 0.005 0.05 weightedVotingBasedScores Max avglogits epoch11
-        #9=0.0005 0.01  weightedVotingBasedScores Max avglogits epoch11 
-        #12=0.0005 0.01  weightedVotingBasedScores Max avglogits epoch11
-        #15=0.001 0.01  weightedVotingBasedScores Max avglogits epoch3 
-        #18=0.0005 0.01 0.0001 0.05  weightedVotingBasedScores Max avglogits epoch3 
-        #------------------------------
-        #CIFAR10 IID False DBA---TS
-        #0=0.0001 0.05
-        #3=20per=0.0001 0.05 ----
-        #6=40per=0.0001 0.05-------0.001 0.05
-        #9=60per=0.0001 0.05 ---- 0.001 0.05
-        #------------------------------
-        #CIFAR10 IID 0.5 DBA-TS
-        #0=0.001 0.01 3
-        #3=20per=001 0.01 epo 3 ----
-        #6=40per=001 0.01 epo 3-------001 0.01 epo3
-        #9=60per=001 0.01 epo 3---- 001 0.01 epo3
-
-
-
-    
       
         
-        
-        
-        
-        self.momentum = 0.9 #0.9 CIFAR10
+        self.momentum = 0.9 
         
         self.method = method 
         self.device = device
-        self.optimizer_type = "SGD" # Adam"   could be "SGD", "Adagrad", etc.
+        self.optimizer_type = "SGD" 
         
 
 
@@ -143,8 +78,6 @@ class KnowledgeDistiller:
      
 
         swa_model = AveragedModel(Scoresmodel)
-        #T_max_dynamic = self.epoc  # or any other dynamic determination
-        #scheduler = CosineAnnealingLR(opt, T_max=T_max_dynamic)
         scheduler = CosineAnnealingLR(opt, T_max=100)
         swa_scheduler = SWALR(opt, swa_lr=self.swa_lr)
 
