@@ -3,7 +3,7 @@
 
 
 <h2>Overview</h2>
-    <p>RKD is an effective framework to mitigate challenging backdoor attacks, such as F3BA, DBA, and TSBA, within the FL context.  Our experiments considered the CIFAR-10 and the EMNIST datasets under various Non-IID conditions and for different attack ratios to evaluate our proposal. RKD demonstrated the capability to maintain high accuracy levels and significantly reduce attack success rates, highlighting its robustness and efficiency capabilities in this context. The paper has been submitted to the ECAI2024. </p>
+    <p>RKD is an effective framework for mitigating challenging backdoor attacks within the FL context, such as A3FL,F3BA, DBA, and TSBA.  Our experiments considered the CIFAR-10, EMNIST, and Fashion-MNIST datasets under various Non-IID conditions and for different attack ratios to evaluate our proposal. RKD demonstrated the capability to maintain high accuracy levels and significantly reduce attack success rates, highlighting its robustness and efficiency capabilities in this context. The paper has been submitted to the SaTML2025 </p>
 
 <h2>Getting Started</h2>
     <ol>
